@@ -22,10 +22,18 @@ import com.facebook.flipper.core.FlipperClient
 import com.facebook.flipper.plugins.inspector.DescriptorMapping
 import com.facebook.flipper.plugins.inspector.InspectorFlipperPlugin
 import com.facebook.soloader.SoLoader
+import com.uber.rib.core.RibEventReporter.ribEventDataFlow
 import com.uber.rib.flipper.RibTreePlugin
+import com.uber.rib.workers.root.monitoring.RibMonitor
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class ComposeApplication : Application() {
 
+  private val ribMonitor = RibMonitor()
+
+  @OptIn(DelicateCoroutinesApi::class)
   override fun onCreate() {
     super.onCreate()
     SoLoader.init(this, false)
@@ -36,5 +44,7 @@ class ComposeApplication : Application() {
       client.addPlugin(InspectorFlipperPlugin(this, DescriptorMapping.withDefaults()))
       client.start()
     }
+
+    GlobalScope.launch { ribEventDataFlow.collect { ribMonitor.report(it) } }
   }
 }

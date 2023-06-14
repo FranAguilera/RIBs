@@ -13,13 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.uber.rib.workers.root
+package com.uber.rib.workers.root.monitoring
 
-import com.uber.rib.core.BasicInteractor
-import com.uber.rib.core.EmptyPresenter
-import com.uber.rib.workers.root.monitoring.RibMonitor
-
-class RootInteractor(
-  presenter: EmptyPresenter,
-  private val ribMonitor: RibMonitor,
-) : BasicInteractor<EmptyPresenter, RootRouter>(presenter)
+fun interface BackendReporter {
+  fun report(genericMessage: String)
+}

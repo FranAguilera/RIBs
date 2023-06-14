@@ -23,7 +23,6 @@ import com.uber.rib.core.lifecycle.PresenterEvent
 import com.uber.rib.core.lifecycle.WorkerEvent
 import io.reactivex.Observable
 import io.reactivex.subjects.CompletableSubject
-import java.lang.ref.WeakReference
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.system.measureTimeMillis
@@ -53,19 +52,6 @@ private val Worker.bindingCoroutineContext: CoroutineContext
 )
 public object WorkerBinder {
 
-  private var workerBinderListenerWeakRef: WeakReference<WorkerBinderListener>? = null
-
-  /**
-   * Initializes reporting of [WorkerBinderInfo] via [WorkerBinderListener]
-   *
-   * IMPORTANT: This should be called only once at early app scope to get proper monitoring of early
-   * worker being bound
-   */
-  @JvmStatic
-  public fun initializeMonitoring(workerBinderListener: WorkerBinderListener) {
-    this.workerBinderListenerWeakRef = WeakReference<WorkerBinderListener>(workerBinderListener)
-  }
-
   /**
    * Bind a worker (ie. a manager or any other class that needs an interactor's lifecycle) to an
    * interactor's lifecycle events. Inject this class into your interactor and call this method on
@@ -88,7 +74,6 @@ public object WorkerBinder {
       interactor.lifecycleFlow,
       Interactor.lifecycleRange,
       dispatcherAtBinder,
-      workerBinderListenerWeakRef,
     )
 
   /**
@@ -136,7 +121,6 @@ public object WorkerBinder {
       presenter.lifecycleFlow,
       Presenter.lifecycleRange,
       dispatcherAtBinder,
-      workerBinderListenerWeakRef,
     )
 
   /**
@@ -252,44 +236,6 @@ public object WorkerBinder {
   }
 }
 
-/**
- * Holds all relevant information for completed Worker.onStart/onStop actions. (e.g. Name of the
- * Worker bound, duration of total onStart/onStop, thread name where onStart/onStop happens,etc)
- */
-public data class WorkerBinderInfo(
-  /** Worker class name */
-  val workerName: String,
-
-  /** Worker event type (START/STOP) */
-  val workerEvent: WorkerEvent,
-
-  /** The [CoroutineContext] where a [Worker] will be bound */
-  val coroutineContext: CoroutineContext,
-
-  /**
-   * Thread name where Worker.onStart/onStop was called.
-   *
-   * e.g. When [CoroutineDispatcher] is set as [RibDispatchers.Default] a sample threadName value
-   * would be similar to `DefaultDispatcher-worker-2`
-   */
-  val threadName: String,
-
-  /** Total binding duration in milliseconds of Worker.onStart/onStop */
-  val totalBindingDurationMilli: Long,
-)
-
-/** Reports total binding duration of Worker.onStart/onStop */
-public fun interface WorkerBinderListener {
-
-  /**
-   * Reports all related Worker information via [WorkerBinderInfo] when onStart/onStop methods are
-   * completed
-   */
-  public fun onBindCompleted(
-    workerBinderInfo: WorkerBinderInfo,
-  )
-}
-
 private fun getJobCoroutineContext(
   dispatcherAtBinder: CoroutineDispatcher,
   worker: Worker,
@@ -306,7 +252,6 @@ private fun <T : Comparable<T>> Worker.bind(
   lifecycle: SharedFlow<T>,
   lifecycleRange: ClosedRange<T>,
   dispatcherAtBinder: CoroutineDispatcher = RibDispatchers.Unconfined,
-  workerDurationListenerWeakRef: WeakReference<WorkerBinderListener>?,
 ): WorkerUnbinder {
   val coroutineContext =
     getJobCoroutineContext(
@@ -341,9 +286,7 @@ private fun <T : Comparable<T>> Worker.bind(
         .takeWhile { it < lifecycleRange.endInclusive }
         .onCompletion {
           bindAndReportWorkerInfo(
-            workerDurationListenerWeakRef,
             WorkerEvent.STOP,
-            coroutineContext,
           ) {
             onStop()
           }
@@ -351,9 +294,7 @@ private fun <T : Comparable<T>> Worker.bind(
         }
         .collect {
           bindAndReportWorkerInfo(
-            workerDurationListenerWeakRef,
             WorkerEvent.START,
-            coroutineContext,
           ) {
             onStart(workerScopeProvider)
           }
@@ -363,32 +304,17 @@ private fun <T : Comparable<T>> Worker.bind(
 }
 
 private inline fun Worker.bindAndReportWorkerInfo(
-  workerBinderListeners: WeakReference<WorkerBinderListener>?,
   event: WorkerEvent,
-  coroutineContext: CoroutineContext,
   workerBinderAction: Worker.() -> Unit,
 ) {
   val duration = measureTimeMillis { workerBinderAction() }
-  workerBinderListeners?.reportWorkerBinderInfo(this, coroutineContext, event, duration)
-}
 
-private fun WeakReference<WorkerBinderListener>.reportWorkerBinderInfo(
-  worker: Worker,
-  coroutineContext: CoroutineContext,
-  workerEvent: WorkerEvent,
-  totalBindingEventMilli: Long,
-) {
-  val workerClassName = worker.javaClass.name
-  val currentThreadName = Thread.currentThread().name
-
-  val workerBinderInfo =
-    WorkerBinderInfo(
-      workerClassName,
-      workerEvent,
-      coroutineContext,
-      currentThreadName,
-      totalBindingEventMilli,
-    )
-
-  this@reportWorkerBinderInfo.get()?.onBindCompleted(workerBinderInfo)
+  val ribEventType =
+    if (event == WorkerEvent.START) RibEventType.ATTACHED else RibEventType.DETACHED
+  RibEventReporter.emitRibEventInfo(
+    this.javaClass.name,
+    RibComponentType.WORKER,
+    ribEventType,
+    duration,
+  )
 }

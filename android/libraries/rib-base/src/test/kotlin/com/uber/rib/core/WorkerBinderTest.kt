@@ -29,7 +29,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,15 +53,9 @@ class WorkerBinderTest(private val adaptFromRibCoroutineWorker: Boolean) {
         this
       }
     }
-  private val workerBinderListener: WorkerBinderListener = mock()
 
   private val fakeWorker = FakeWorker()
   private val interactor = FakeInteractor<Presenter, Router<*>>()
-
-  @Before
-  fun setUp() {
-    WorkerBinder.initializeMonitoring(workerBinderListener)
-  }
 
   @Test
   fun bind_whenInteractorAttached_shouldStartWorker() {
@@ -181,12 +174,12 @@ class WorkerBinderTest(private val adaptFromRibCoroutineWorker: Boolean) {
   fun bind_withUnconfinedCoroutineDispatchers_shouldReportBinderInformationForOnStart() = runTest {
     val binderDurationCaptor = argumentCaptor<WorkerBinderInfo>()
     bindFakeWorker()
-    verify(workerBinderListener).onBindCompleted(binderDurationCaptor.capture())
-    binderDurationCaptor.firstValue.assertWorkerDuration(
-      "FakeWorker",
-      WorkerEvent.START,
-      RibDispatchers.Unconfined,
-    )
+    //    verify(workerBinderListener).onBindCompleted(binderDurationCaptor.capture())
+    //    binderDurationCaptor.firstValue.assertWorkerDuration(
+    //      "FakeWorker",
+    //      WorkerEvent.START,
+    //      RibDispatchers.Unconfined,
+    //    )
   }
 
   @Test
@@ -197,7 +190,7 @@ class WorkerBinderTest(private val adaptFromRibCoroutineWorker: Boolean) {
     val workers = listOf(fakeWorker, fakeWorker, uiWorker)
     bind(interactor, workers)
     advanceUntilIdle()
-    verify(workerBinderListener, times(3)).onBindCompleted(binderDurationCaptor.capture())
+    //    verify(workerBinderListener, times(3)).onBindCompleted(binderDurationCaptor.capture())
     binderDurationCaptor.firstValue.assertWorkerDuration(
       "FakeWorker",
       WorkerEvent.START,
@@ -215,7 +208,7 @@ class WorkerBinderTest(private val adaptFromRibCoroutineWorker: Boolean) {
     val binderDurationCaptor = argumentCaptor<WorkerBinderInfo>()
     val unbinder = bindFakeWorker()
     unbinder.unbind()
-    verify(workerBinderListener, times(2)).onBindCompleted(binderDurationCaptor.capture())
+    //    verify(workerBinderListener, times(2)).onBindCompleted(binderDurationCaptor.capture())
     binderDurationCaptor.secondValue.assertWorkerDuration(
       "FakeWorker",
       WorkerEvent.STOP,

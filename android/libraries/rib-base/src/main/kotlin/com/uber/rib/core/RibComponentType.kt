@@ -13,8 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.uber.rib.workers.root.main.workers.monitoring
+package com.uber.rib.core
 
-fun interface BackendReporter {
-  fun report(genericMessage: String)
+public enum class RibComponentType {
+  ROUTER,
+  PRESENTER,
+  INTERACTOR,
+  WORKER,
 }
